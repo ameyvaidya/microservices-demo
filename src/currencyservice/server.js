@@ -14,22 +14,47 @@
  * limitations under the License.
  */
 
-require('@google-cloud/profiler').start({
-  serviceContext: {
-    service: 'currencyservice',
-    version: '1.0.0'
-  }
-});
-require('@google-cloud/trace-agent').start();
-require('@google-cloud/debug-agent').start({
-  serviceContext: {
-    service: 'currencyservice',
-    version: 'VERSION'
-  }
+if(process.env.DISABLE_PROFILER) {
+  console.log("Profiler disabled.")
+}
+else {
+  console.log("Profiler enabled.")
+  require('@google-cloud/profiler').start({
+    serviceContext: {
+      service: 'currencyservice',
+      version: '1.0.0'
+    }
+  });
+}
+
+// Register GRPC OTel Instrumentation for trace propagation
+// regardless of whether tracing is emitted.
+const { GrpcInstrumentation } = require('@opentelemetry/instrumentation-grpc');
+const { registerInstrumentations } = require('@opentelemetry/instrumentation');
+
+registerInstrumentations({
+  instrumentations: [new GrpcInstrumentation()]
 });
 
+if(process.env.ENABLE_TRACING == "1") {
+  console.log("Tracing enabled.")
+  const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
+  const { SimpleSpanProcessor } = require('@opentelemetry/sdk-trace-base');
+  const { OTLPTraceExporter } = require("@opentelemetry/exporter-otlp-grpc");
+
+  const provider = new NodeTracerProvider();
+  
+  const collectorUrl = process.env.COLLECTOR_SERVICE_ADDR
+
+  provider.addSpanProcessor(new SimpleSpanProcessor(new OTLPTraceExporter({url: collectorUrl})));
+  provider.register();
+}
+else {
+  console.log("Tracing disabled.")
+}
+
 const path = require('path');
-const grpc = require('grpc');
+const grpc = require('@grpc/grpc-js');
 const pino = require('pino');
 const protoLoader = require('@grpc/proto-loader');
 
@@ -44,8 +69,11 @@ const healthProto = _loadProto(HEALTH_PROTO_PATH).grpc.health.v1;
 const logger = pino({
   name: 'currencyservice-server',
   messageKey: 'message',
-  changeLevelName: 'severity',
-  useLevelLabels: true
+  formatters: {
+    level (logLevelString, logLevelNum) {
+      return { severity: logLevelString }
+    }
+  }
 });
 
 /**
@@ -99,7 +127,6 @@ function getSupportedCurrencies (call, callback) {
  * Converts between currencies
  */
 function convert (call, callback) {
-  logger.info('received conversion request');
   try {
     _getCurrencyData((data) => {
       const request = call.request;
@@ -148,8 +175,15 @@ function main () {
   const server = new grpc.Server();
   server.addService(shopProto.CurrencyService.service, {getSupportedCurrencies, convert});
   server.addService(healthProto.Health.service, {check});
-  server.bind(`0.0.0.0:${PORT}`, grpc.ServerCredentials.createInsecure());
-  server.start();
+
+  server.bindAsync(
+    `[::]:${PORT}`,
+    grpc.ServerCredentials.createInsecure(),
+    function() {
+      logger.info(`CurrencyService gRPC server started on port ${PORT}`);
+      server.start();
+    },
+   );
 }
 
 main();

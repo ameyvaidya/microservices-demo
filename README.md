@@ -1,49 +1,152 @@
-# Hipster Shop: Cloud-Native Microservices Demo Application
+<p align="center">
+<img src="/src/frontend/static/icons/Hipster_HeroLogoMaroon.svg" width="300" alt="Online Boutique" />
+</p>
 
-This project contains a 10-tier microservices application. The application is a
-web-based e-commerce app called **“Hipster Shop”** where users can browse items,
+![Continuous Integration](https://github.com/GoogleCloudPlatform/microservices-demo/workflows/Continuous%20Integration%20-%20Main/Release/badge.svg)
+
+**Online Boutique** is a cloud-first microservices demo application.
+Online Boutique consists of an 11-tier microservices application. The application is a
+web-based e-commerce app where users can browse items,
 add them to the cart, and purchase them.
 
-**Google uses this application to demonstrate use of technologies like
-Kubernetes/GKE, Istio, Stackdriver, gRPC and OpenCensus**. This application
-works on any Kubernetes cluster (such as a local one), as well as Google
-Kubernetes Engine. It’s **easy to deploy with little to no configuration**.
+Google uses this application to demonstrate the use of technologies like
+Kubernetes, GKE, Istio, Stackdriver, and gRPC. This application
+works on any Kubernetes cluster, like Google
+Kubernetes Engine (GKE). It’s **easy to deploy with little to no configuration**.
 
 If you’re using this demo, please **★Star** this repository to show your interest!
 
-> 👓**Note to Googlers:** Please fill out the form at
-> [go/microservices-demo](http://go/microservices-demo) if you are using this
-> application.
+**Note to Googlers (Google employees):** Please fill out the form at [go/microservices-demo](http://go/microservices-demo).
 
 ## Screenshots
 
 | Home Page                                                                                                         | Checkout Screen                                                                                                    |
 | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [![Screenshot of store homepage](./docs/img/hipster-shop-frontend-1.png)](./docs/img/hipster-shop-frontend-1.png) | [![Screenshot of checkout screen](./docs/img/hipster-shop-frontend-2.png)](./docs/img/hipster-shop-frontend-2.png) |
+| [![Screenshot of store homepage](/docs/img/online-boutique-frontend-1.png)](/docs/img/online-boutique-frontend-1.png) | [![Screenshot of checkout screen](/docs/img/online-boutique-frontend-2.png)](/docs/img/online-boutique-frontend-2.png) |
 
-## Service Architecture
+## Interactive quickstart (GKE)
 
-**Hipster Shop** is composed of many microservices written in different
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https%3A%2F%2Fgithub.com%2FGoogleCloudPlatform%2Fmicroservices-demo&shellonly=true&cloudshell_image=gcr.io/ds-artifacts-cloudshell/deploystack_custom_image)
+
+## Quickstart (GKE)
+
+1. Ensure you have the following requirements:
+   - [Google Cloud project](https://cloud.google.com/resource-manager/docs/creating-managing-projects#creating_a_project).
+   - Shell environment with `gcloud`, `git`, and `kubectl`.
+
+2. Clone the repository.
+
+   ```sh
+   git clone https://github.com/GoogleCloudPlatform/microservices-demo
+   cd microservices-demo/
+   ```
+
+3. Set the Google Cloud project and region and ensure the Google Kubernetes Engine API is enabled.
+
+   ```sh
+   export PROJECT_ID=<PROJECT_ID>
+   export REGION=us-central1
+   gcloud services enable container.googleapis.com \
+     --project=${PROJECT_ID}
+   ```
+
+   Substitute `<PROJECT_ID>` with the ID of your Google Cloud project.
+
+4. Create a GKE cluster and get the credentials for it.
+
+   ```sh
+   gcloud container clusters create-auto online-boutique \
+     --project=${PROJECT_ID} --region=${REGION}
+   ```
+
+   Creating the cluster may take a few minutes.
+
+5. Deploy Online Boutique to the cluster.
+
+   ```sh
+   kubectl apply -f ./release/kubernetes-manifests.yaml
+   ```
+
+6. Wait for the pods to be ready.
+
+   ```sh
+   kubectl get pods
+   ```
+
+   After a few minutes, you should see the Pods in a `Running` state:
+
+   ```
+   NAME                                     READY   STATUS    RESTARTS   AGE
+   adservice-76bdd69666-ckc5j               1/1     Running   0          2m58s
+   cartservice-66d497c6b7-dp5jr             1/1     Running   0          2m59s
+   checkoutservice-666c784bd6-4jd22         1/1     Running   0          3m1s
+   currencyservice-5d5d496984-4jmd7         1/1     Running   0          2m59s
+   emailservice-667457d9d6-75jcq            1/1     Running   0          3m2s
+   frontend-6b8d69b9fb-wjqdg                1/1     Running   0          3m1s
+   loadgenerator-665b5cd444-gwqdq           1/1     Running   0          3m
+   paymentservice-68596d6dd6-bf6bv          1/1     Running   0          3m
+   productcatalogservice-557d474574-888kr   1/1     Running   0          3m
+   recommendationservice-69c56b74d4-7z8r5   1/1     Running   0          3m1s
+   redis-cart-5f59546cdd-5jnqf              1/1     Running   0          2m58s
+   shippingservice-6ccc89f8fd-v686r         1/1     Running   0          2m58s
+   ```
+
+7. Access the web frontend in a browser using the frontend's external IP.
+
+   ```sh
+   kubectl get service frontend-external | awk '{print $4}'
+   ```
+
+   Visit `http://EXTERNAL_IP` in a web browser to access your instance of Online Boutique.
+
+8. Once you are done with it, delete the GKE cluster.
+
+   ```sh
+   gcloud container clusters delete online-boutique \
+     --project=${PROJECT_ID} --region=${REGION}
+   ```
+
+   Deleting the cluster may take a few minutes.
+
+## Use Terraform to provision a GKE cluster and deploy Online Boutique
+
+The [`/terraform` folder](/terraform) contains instructions for using [Terraform](https://www.terraform.io/intro) to replicate the steps from [**Quickstart (GKE)**](#quickstart-gke) above.
+
+## Other deployment variations
+
+- **Istio/Anthos Service Mesh**: [See these instructions.](/kustomize/components/service-mesh-istio/README.md)
+- **non-GKE clusters (Minikube, Kind)**: see the [Development Guide](/docs/development-guide.md)
+
+## Deploy Online Boutique variations with Kustomize
+
+The [`/kustomize` folder](/kustomize) contains instructions for customizing the deployment of Online Boutique with different variations such as:
+* integrating with [Google Cloud Operations](/kustomize/components/google-cloud-operations/)
+* replacing the in-cluster Redis cache with [Google Cloud Memorystore (Redis)](/kustomize/components/memorystore), [AlloyDB](/kustomize/components/alloydb) or [Google Cloud Spanner](/kustomize/components/spanner)
+* etc.
+
+## Architecture
+
+**Online Boutique** is composed of 11 microservices written in different
 languages that talk to each other over gRPC.
 
 [![Architecture of
-microservices](./docs/img/architecture-diagram.png)](./docs/img/architecture-diagram.png)
+microservices](/docs/img/architecture-diagram.png)](/docs/img/architecture-diagram.png)
 
-Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
+Find **Protocol Buffers Descriptions** at the [`./protos` directory](/protos).
 
 | Service                                              | Language      | Description                                                                                                                       |
 | ---------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [frontend](./src/frontend)                           | Go            | Exposes an HTTP server to serve the website. Does not require signup/login and generates session IDs for all users automatically. |
-| [cartservice](./src/cartservice)                     | C#            | Stores the items in the user's shipping cart in Redis and retrieves it.                                                           |
-| [productcatalogservice](./src/productcatalogservice) | Go            | Provides the list of products from a JSON file and ability to search products and get individual products.                        |
-| [currencyservice](./src/currencyservice)             | Node.js       | Converts one money amount to another currency. Uses real values fetched from European Central Bank. It's the highest QPS service. |
-| [paymentservice](./src/paymentservice)               | Node.js       | Charges the given credit card info (mock) with the given amount and returns a transaction ID.                                     |
-| [shippingservice](./src/shippingservice)             | Go            | Gives shipping cost estimates based on the shopping cart. Ships items to the given address (mock)                                 |
-| [emailservice](./src/emailservice)                   | Python        | Sends users an order confirmation email (mock).                                                                                   |
-| [checkoutservice](./src/checkoutservice)             | Go            | Retrieves user cart, prepares order and orchestrates the payment, shipping and the email notification.                            |
-| [recommendationservice](./src/recommendationservice) | Python        | Recommends other products based on what's given in the cart.                                                                      |
-| [adservice](./src/adservice)                         | Java          | Provides text ads based on given context words.                                                                                   |
-| [loadgenerator](./src/loadgenerator)                 | Python/Locust | Continuously sends requests imitating realistic user shopping flows to the frontend.                                              |
+| [frontend](/src/frontend)                           | Go            | Exposes an HTTP server to serve the website. Does not require signup/login and generates session IDs for all users automatically. |
+| [cartservice](/src/cartservice)                     | C#            | Stores the items in the user's shopping cart in Redis and retrieves it.                                                           |
+| [productcatalogservice](/src/productcatalogservice) | Go            | Provides the list of products from a JSON file and ability to search products and get individual products.                        |
+| [currencyservice](/src/currencyservice)             | Node.js       | Converts one money amount to another currency. Uses real values fetched from European Central Bank. It's the highest QPS service. |
+| [paymentservice](/src/paymentservice)               | Node.js       | Charges the given credit card info (mock) with the given amount and returns a transaction ID.                                     |
+| [shippingservice](/src/shippingservice)             | Go            | Gives shipping cost estimates based on the shopping cart. Ships items to the given address (mock)                                 |
+| [emailservice](/src/emailservice)                   | Python        | Sends users an order confirmation email (mock).                                                                                   |
+| [checkoutservice](/src/checkoutservice)             | Go            | Retrieves user cart, prepares order and orchestrates the payment, shipping and the email notification.                            |
+| [recommendationservice](/src/recommendationservice) | Python        | Recommends other products based on what's given in the cart.                                                                      |
+| [adservice](/src/adservice)                         | Java          | Provides text ads based on given context words.                                                                                   |
+| [loadgenerator](/src/loadgenerator)                 | Python/Locust | Continuously sends requests imitating realistic user shopping flows to the frontend.                                              |
 
 ## Features
 
@@ -53,10 +156,8 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
 - **[gRPC](https://grpc.io):** Microservices use a high volume of gRPC calls to
   communicate to each other.
 - **[Istio](https://istio.io):** Application works on Istio service mesh.
-- **[OpenCensus](https://opencensus.io/) Tracing:** Most services are
-  instrumented using OpenCensus trace interceptors for gRPC/HTTP.
-- **[Stackdriver APM](https://cloud.google.com/stackdriver/):** Many services
-  are instrumented with **Profiling**, **Tracing** and **Debugging**. In
+- **[Cloud Operations (Stackdriver)](https://cloud.google.com/products/operations):** Many services
+  are instrumented with **Profiling** and **Tracing**. In
   addition to these, using Istio enables features like Request/Response
   **Metrics** and **Context Graph** out of the box. When it is running out of
   Google Cloud, this code path remains inactive.
@@ -66,213 +167,30 @@ Find **Protocol Buffers Descriptions** at the [`./pb` directory](./pb).
   job that creates realistic usage patterns on the website using
   [Locust](https://locust.io/) load generator.
 
-## Installation
+## Development
 
-We offer three installation methods:
+See the [Development guide](/docs/development-guide.md) to learn how to run and develop this app locally.
 
-1. **Running locally with “Docker for Desktop”** (~20 minutes) You will build
-   and deploy microservices images to a single-node Kubernetes cluster running
-   on your development machine.
+## Demos featuring Online Boutique
 
-2. **Running on Google Kubernetes Engine (GKE)”** (~30 minutes) You will build,
-   upload and deploy the container images to a Kubernetes cluster on Google
-   Cloud.
-
-3. **Using pre-built container images:** (~10 minutes, you will still need to
-   follow one of the steps above up until `skaffold run` command). With this
-   option, you will use pre-built container images that are available publicly,
-   instead of building them yourself, which takes a long time).
-
-### Option 1: Running locally with “Docker for Desktop”
-
-> 💡 Recommended if you're planning to develop the application or giving it a
-> try on your local cluster.
-
-1. Install tools to run a Kubernetes cluster locally:
-
-   - kubectl (can be installed via `gcloud components install kubectl`)
-   - Docker for Desktop (Mac/Windows): It provides Kubernetes support as [noted
-     here](https://docs.docker.com/docker-for-mac/kubernetes/).
-   - [skaffold](https://skaffold.dev/docs/getting-started/#installing-skaffold)
-     (ensure version ≥v0.20)
-
-1. Launch “Docker for Desktop”. Go to Preferences:
-
-   - choose “Enable Kubernetes”,
-   - set CPUs to at least 3, and Memory to at least 6.0 GiB
-   - on the "Disk" tab, set at least 32 GB disk space
-
-1. Run `kubectl get nodes` to verify you're connected to “Kubernetes on Docker”.
-
-1. Run `skaffold run` (first time will be slow, it can take ~20 minutes).
-   This will build and deploy the application. If you need to rebuild the images
-   automatically as you refactor the code, run `skaffold dev` command.
-
-1. Run `kubectl get pods` to verify the Pods are ready and running. The
-   application frontend should be available at http://localhost:80 on your
-   machine.
-
-### Option 2: Running on Google Kubernetes Engine (GKE)
-
-> 💡 Recommended if you're using Google Cloud Platform and want to try it on
-> a realistic cluster.
-
-1.  Install tools specified in the previous section (Docker, kubectl, skaffold)
-
-1.  Create a Google Kubernetes Engine cluster and make sure `kubectl` is pointing
-    to the cluster.
-
-    ```sh
-    gcloud services enable container.googleapis.com
-    ```
-
-    ```sh
-    gcloud container clusters create demo --enable-autoupgrade \
-        --enable-autoscaling --min-nodes=3 --max-nodes=10 --num-nodes=5 --zone=us-central1-a
-    ```
-
-    ```
-    kubectl get nodes
-    ```
-
-1.  Enable Google Container Registry (GCR) on your GCP project and configure the
-    `docker` CLI to authenticate to GCR:
-
-    ```sh
-    gcloud services enable containerregistry.googleapis.com
-    ```
-
-    ```sh
-    gcloud auth configure-docker -q
-    ```
-
-1.  In the root of this repository, run `skaffold run --default-repo=gcr.io/[PROJECT_ID]`,
-    where [PROJECT_ID] is your GCP project ID.
-
-    This command:
-
-    - builds the container images
-    - pushes them to GCR
-    - applies the `./kubernetes-manifests` deploying the application to
-      Kubernetes.
-
-    **Troubleshooting:** If you get "No space left on device" error on Google
-    Cloud Shell, you can build the images on Google Cloud Build: [Enable the
-    Cloud Build
-    API](https://console.cloud.google.com/flows/enableapi?apiid=cloudbuild.googleapis.com),
-    then run `skaffold run -p gcb --default-repo=gcr.io/[PROJECT_ID]` instead.
-
-1.  Find the IP address of your application, then visit the application on your
-    browser to confirm installation.
-
-        kubectl get service frontend-external
-
-    **Troubleshooting:** A Kubernetes bug (will be fixed in 1.12) combined with
-    a Skaffold [bug](https://github.com/GoogleContainerTools/skaffold/issues/887)
-    causes load balancer to not to work even after getting an IP address. If you
-    are seeing this, run `kubectl get service frontend-external -o=yaml | kubectl apply -f-`
-    to trigger load balancer reconfiguration.
-
-### Option 3: Using Pre-Built Container Images
-
-> 💡 Recommended if you want to deploy the app faster in fewer steps to an
-> existing cluster.
-
-**NOTE:** If you need to create a Kubernetes cluster locally or on the cloud,
-follow "Option 1" or "Option 2" until you reach the `skaffold run` step.
-
-This option offers you pre-built public container images that are easy to deploy
-by deploying the [release manifest](./release) directly to an existing cluster.
-
-**Prerequisite**: a running Kubernetes cluster (either local or on cloud).
-
-1. Clone this repository, and go to the repository directory
-1. Run `kubectl apply -f ./release/kubernetes-manifests.yaml` to deploy the app.
-1. Run `kubectl get pods` to see pods are in a Ready state.
-1. Find the IP address of your application, then visit the application on your
-   browser to confirm installation.
-
-   ```sh
-   kubectl get service/frontend-external
-   ```
-
-### (Optional) Deploying on a Istio-installed GKE cluster
-
-> **Note:** you followed GKE deployment steps above, run `skaffold delete` first
-> to delete what's deployed.
-
-1. Create a GKE cluster (described in "Option 2").
-
-1. Use [Istio on GKE add-on](https://cloud.google.com/istio/docs/istio-on-gke/installing)
-   to install Istio to your existing GKE cluster.
-
-   ```sh
-   gcloud beta container clusters update demo \
-       --zone=us-central1-a \
-       --update-addons=Istio=ENABLED \
-       --istio-config=auth=MTLS_PERMISSIVE
-   ```
-
-   > NOTE: If you need to enable `MTLS_STRICT` mode, you will need to update
-   > several manifest files:
-   >
-   > - `kubernetes-manifests/frontend.yaml`: delete "livenessProbe" and
-   >   "readinessProbe" fields.
-   > - `kubernetes-manifests/loadgenerator.yaml`: delete "initContainers" field.
-
-1. (Optional) Enable Stackdriver Tracing/Logging with Istio Stackdriver Adapter
-   by [following this guide](https://cloud.google.com/istio/docs/istio-on-gke/installing#enabling_tracing_and_logging).
-
-1. Install the automatic sidecar injection (annotate the `default` namespace
-   with the label):
-
-   ```sh
-   kubectl label namespace default istio-injection=enabled
-   ```
-
-1. Apply the manifests in [`./istio-manifests`](./istio-manifests) directory.
-   (This is required only once.)
-
-   ```sh
-   kubectl apply -f ./istio-manifests
-   ```
-
-1. Deploy the application with `skaffold run --default-repo=gcr.io/[PROJECT_ID]`.
-
-1. Run `kubectl get pods` to see pods are in a healthy and ready state.
-
-1. Find the IP address of your Istio gateway Ingress or Service, and visit the
-   application.
-
-   ```sh
-   INGRESS_HOST="$(kubectl -n istio-system get service istio-ingressgateway \
-      -o jsonpath='{.status.loadBalancer.ingress[0].ip}')"
-   echo "$INGRESS_HOST"
-   ```
-
-   ```sh
-   curl -v "http://$INGRESS_HOST"
-   ```
-
-### Cleanup
-
-If you've deployed the application with `skaffold run` command, you can run
-`skaffold delete` to clean up the deployed resources.
-
-If you've deployed the application with `kubectl apply -f [...]`, you can
-run `kubectl delete -f [...]` with the same argument to clean up the deployed
-resources.
-
-## Conferences featuring Hipster Shop
-
-- [Google Cloud Next'18 London – Keynote](https://youtu.be/nIq2pkNcfEI?t=3071)
-  showing Stackdriver Incident Response Management
+- [Use Helm to simplify the deployment of Online Boutique, with a Service Mesh, GitOps, and more!](https://medium.com/p/246119e46d53)
+- [How to reduce microservices complexity with Apigee and Anthos Service Mesh](https://cloud.google.com/blog/products/application-modernization/api-management-and-service-mesh-go-together)
+- [gRPC health probes with Kubernetes 1.24+](https://medium.com/p/b5bd26253a4c)
+- [Use Google Cloud Spanner with the Online Boutique sample](https://medium.com/p/f7248e077339)
+- [Seamlessly encrypt traffic from any apps in your Mesh to Memorystore (redis)](https://medium.com/google-cloud/64b71969318d)
+- [Strengthen your app's security with Anthos Service Mesh and Anthos Config Management](https://cloud.google.com/service-mesh/docs/strengthen-app-security)
+- [From edge to mesh: Exposing service mesh applications through GKE Ingress](https://cloud.google.com/architecture/exposing-service-mesh-apps-through-gke-ingress)
+- [Take the first step toward SRE with Cloud Operations Sandbox](https://cloud.google.com/blog/products/operations/on-the-road-to-sre-with-cloud-operations-sandbox)
+- [Deploying the Online Boutique sample application on Anthos Service Mesh](https://cloud.google.com/service-mesh/docs/onlineboutique-install-kpt)
+- [Anthos Service Mesh Workshop: Lab Guide](https://codelabs.developers.google.com/codelabs/anthos-service-mesh-workshop)
+- [KubeCon EU 2019 - Reinventing Networking: A Deep Dive into Istio's Multicluster Gateways - Steve Dake, Independent](https://youtu.be/-t2BfT59zJA?t=982)
 - Google Cloud Next'18 SF
   - [Day 1 Keynote](https://youtu.be/vJ9OaAqfxo4?t=2416) showing GKE On-Prem
-  - [Day 3 – Keynote](https://youtu.be/JQPOPV_VH5w?t=815) showing Stackdriver
+  - [Day 3 Keynote](https://youtu.be/JQPOPV_VH5w?t=815) showing Stackdriver
     APM (Tracing, Code Search, Profiler, Google Cloud Build)
   - [Introduction to Service Management with Istio](https://www.youtube.com/watch?v=wCJrdKdD6UM&feature=youtu.be&t=586)
-- [KubeCon EU 2019 - Reinventing Networking: A Deep Dive into Istio's Multicluster Gateways - Steve Dake, Independent](https://youtu.be/-t2BfT59zJA?t=982)
+- [Google Cloud Next'18 London – Keynote](https://youtu.be/nIq2pkNcfEI?t=3071)
+  showing Stackdriver Incident Response Management
 
 ---
 

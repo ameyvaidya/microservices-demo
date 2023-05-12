@@ -20,35 +20,23 @@ import os
 import sys
 import time
 import grpc
+import traceback
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateError
 from google.api_core.exceptions import GoogleAPICallError
+from google.auth.exceptions import DefaultCredentialsError
 
 import demo_pb2
 import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 
-from opencensus.trace.exporters import stackdriver_exporter
-from opencensus.trace.ext.grpc import server_interceptor
-from opencensus.trace.samplers import always_on
+from opentelemetry import trace
+from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-# import googleclouddebugger
 import googlecloudprofiler
-
-try:
-    sampler = always_on.AlwaysOnSampler()
-    exporter = stackdriver_exporter.StackdriverExporter()
-    tracer_interceptor = server_interceptor.OpenCensusServerInterceptor(sampler, exporter)
-except:
-    tracer_interceptor = server_interceptor.OpenCensusServerInterceptor()
-
-# try:
-#     googleclouddebugger.enable(
-#         module='emailserver',
-#         version='1.0.0'
-#     )
-# except:
-#     pass
 
 from logger import getJSONLogger
 logger = getJSONLogger('emailservice-server')
@@ -64,6 +52,10 @@ class BaseEmailService(demo_pb2_grpc.EmailServiceServicer):
   def Check(self, request, context):
     return health_pb2.HealthCheckResponse(
       status=health_pb2.HealthCheckResponse.SERVING)
+  
+  def Watch(self, request, context):
+    return health_pb2.HealthCheckResponse(
+      status=health_pb2.HealthCheckResponse.UNIMPLEMENTED)
 
 class EmailService(BaseEmailService):
   def __init__(self):
@@ -123,8 +115,7 @@ class HealthCheck():
       status=health_pb2.HealthCheckResponse.SERVING)
 
 def start(dummy_mode):
-  server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),
-                       interceptors=(tracer_interceptor,))
+  server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),)
   service = None
   if dummy_mode:
     service = DummyEmailService()
@@ -169,16 +160,39 @@ def initStackdriverProfiling():
         logger.warning("Could not initialize Stackdriver Profiler after retrying, giving up")
   return
 
+
 if __name__ == '__main__':
   logger.info('starting the email service in dummy mode.')
+
+  # Profiler
   try:
-    enable_profiler = os.environ["ENABLE_PROFILER"]
-    if enable_profiler != "1":
+    if "DISABLE_PROFILER" in os.environ:
       raise KeyError()
     else:
+      logger.info("Profiler enabled.")
       initStackdriverProfiling()
   except KeyError:
-      logger.info("Skipping Stackdriver Profiler Python agent initialization. Set environment variable ENABLE_PROFILER=1 to enable.")
+      logger.info("Profiler disabled.")
 
+  # Tracing
+  try:
+    if os.environ["ENABLE_TRACING"] == "1":
+      otel_endpoint = os.getenv("COLLECTOR_SERVICE_ADDR", "localhost:4317")
+      trace.set_tracer_provider(TracerProvider())
+      trace.get_tracer_provider().add_span_processor(
+        BatchSpanProcessor(
+            OTLPSpanExporter(
+            endpoint = otel_endpoint,
+            insecure = True
+          )
+        )
+      )
+    grpc_server_instrumentor = GrpcInstrumentorServer()
+    grpc_server_instrumentor.instrument()
 
+  except (KeyError, DefaultCredentialsError):
+      logger.info("Tracing disabled.")
+  except Exception as e:
+      logger.warn(f"Exception on Cloud Trace setup: {traceback.format_exc()}, tracing disabled.") 
+  
   start(dummy_mode = True)

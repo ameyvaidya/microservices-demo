@@ -21,7 +21,6 @@ import (
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/productcatalogservice/genproto"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"go.opencensus.io/plugin/ocgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,10 +28,10 @@ import (
 
 func TestServer(t *testing.T) {
 	ctx := context.Background()
-	addr := run(0)
-	conn, err := grpc.Dial(addr,
-		grpc.WithInsecure(),
-		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}))
+	addr := run(port)
+	conn, err := grpc.DialContext(ctx, addr,
+		grpc.WithInsecure())
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +57,7 @@ func TestServer(t *testing.T) {
 		t.Errorf("got %s, want %s", got, want)
 	}
 
-	sres, err := client.SearchProducts(ctx, &pb.SearchProductsRequest{Query: "typewriter"})
+	sres, err := client.SearchProducts(ctx, &pb.SearchProductsRequest{Query: "sunglasses"})
 	if err != nil {
 		t.Fatal(err)
 	}

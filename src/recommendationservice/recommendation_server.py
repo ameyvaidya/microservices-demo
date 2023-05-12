@@ -20,18 +20,20 @@ import time
 import traceback
 from concurrent import futures
 
-import googleclouddebugger
 import googlecloudprofiler
+from google.auth.exceptions import DefaultCredentialsError
 import grpc
-from opencensus.trace.exporters import print_exporter
-from opencensus.trace.exporters import stackdriver_exporter
-from opencensus.trace.ext.grpc import server_interceptor
-from opencensus.trace.samplers import always_on
 
 import demo_pb2
 import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
+
+from opentelemetry import trace
+from opentelemetry.instrumentation.grpc import GrpcInstrumentorClient, GrpcInstrumentorServer
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
 from logger import getJSONLogger
 logger = getJSONLogger('recommendationservice-server')
@@ -44,7 +46,7 @@ def initStackdriverProfiling():
     # Environment variable not set
     pass
 
-  for retry in xrange(1,4):
+  for retry in range(1,4):
     try:
       if project_id:
         googlecloudprofiler.start(service='recommendation_server', service_version='1.0.0', verbose=0, project_id=project_id)
@@ -84,35 +86,43 @@ class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
         return health_pb2.HealthCheckResponse(
             status=health_pb2.HealthCheckResponse.SERVING)
 
+    def Watch(self, request, context):
+        return health_pb2.HealthCheckResponse(
+            status=health_pb2.HealthCheckResponse.UNIMPLEMENTED)
+
 
 if __name__ == "__main__":
     logger.info("initializing recommendationservice")
 
     try:
-      enable_profiler = os.environ["ENABLE_PROFILER"]
-      if enable_profiler != "1":
+      if "DISABLE_PROFILER" in os.environ:
         raise KeyError()
       else:
+        logger.info("Profiler enabled.")
         initStackdriverProfiling()
     except KeyError:
-      logger.info("Skipping Stackdriver Profiler Python agent initialization. Set environment variable ENABLE_PROFILER=1 to enable.")
+        logger.info("Profiler disabled.")
 
     try:
-        sampler = always_on.AlwaysOnSampler()
-        exporter = stackdriver_exporter.StackdriverExporter()
-        tracer_interceptor = server_interceptor.OpenCensusServerInterceptor(sampler, exporter)
-    except:
-        tracer_interceptor = server_interceptor.OpenCensusServerInterceptor()
-
-    try:
-        googleclouddebugger.enable(
-            module='recommendationserver',
-            version='1.0.0'
+      grpc_client_instrumentor = GrpcInstrumentorClient()
+      grpc_client_instrumentor.instrument()
+      grpc_server_instrumentor = GrpcInstrumentorServer()
+      grpc_server_instrumentor.instrument()
+      if os.environ["ENABLE_TRACING"] == "1":
+        trace.set_tracer_provider(TracerProvider())
+        otel_endpoint = os.getenv("COLLECTOR_SERVICE_ADDR", "localhost:4317")
+        trace.get_tracer_provider().add_span_processor(
+          BatchSpanProcessor(
+              OTLPSpanExporter(
+              endpoint = otel_endpoint,
+              insecure = True
+            )
+          )
         )
-    except Exception, err:
-        logger.error("could not enable debugger")
-        logger.error(traceback.print_exc())
-        pass
+    except (KeyError, DefaultCredentialsError):
+        logger.info("Tracing disabled.")
+    except Exception as e:
+        logger.warn(f"Exception on Cloud Trace setup: {traceback.format_exc()}, tracing disabled.") 
 
     port = os.environ.get('PORT', "8080")
     catalog_addr = os.environ.get('PRODUCT_CATALOG_SERVICE_ADDR', '')
@@ -123,7 +133,7 @@ if __name__ == "__main__":
     product_catalog_stub = demo_pb2_grpc.ProductCatalogServiceStub(channel)
 
     # create gRPC server
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10)) # ,interceptors=(tracer_interceptor,))
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
 
     # add class to gRPC server
     service = RecommendationService()

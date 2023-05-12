@@ -25,8 +25,21 @@ spec:
       labels:
         app: checkoutservice
     spec:
+      serviceAccountName: default
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
         - name: server
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
           image: checkoutservice
           ports:
           - containerPort: 5050
@@ -51,8 +64,6 @@ spec:
             value: "currencyservice:7000"
           - name: CART_SERVICE_ADDR
             value: "cartservice:7070"
-          # - name: JAEGER_SERVICE_ADDR
-          #   value: "jaeger-collector:14268"
           resources:
             requests:
               cpu: 100m
